@@ -1,0 +1,374 @@
+---
+const { id } = Astro.params;
+export const prerender = false;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>New Animal - BioTrack</title>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Edu+AU+VIC+WA+NT+Guides:wght@400..700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div class="page-card">
+      <div class="page-header">
+        <button class="btn-back" id="btn-back"
+          ><i class="fa-solid fa-arrow-left-long"></i>
+        </button>
+        <h1 id="page-title">New Animal</h1>
+      </div>
+
+      <div id="error-msg" class="error-msg"></div>
+
+      <div class="section">
+        <div class="section-title">Identification</div>
+        <div class="field">
+          <label for="identifier">Identifier *</label>
+          <input
+            type="text"
+            id="identifier"
+            placeholder="e.g. RAT-001, A01, SUB-2024-001"
+          />
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Initial Measurements</div>
+        <div class="row">
+          <div class="field">
+            <label for="weight">Starting Weight (grams) *</label>
+            <input type="number" id="weight" value="0" min="0" />
+          </div>
+          <div class="field">
+            <label for="length">Initial Size (centimeters) *</label>
+            <input type="number" id="length" value="0" min="0" />
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Treatment</div>
+        <div class="field">
+          <label for="dose">Dose *</label>
+          <input
+            type="text"
+            id="dose"
+            placeholder="e.g. 10 mg/kg, Placebo, Control"
+          />
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Extra Notes</div>
+        <div class="field">
+          <textarea
+            id="notes"
+            placeholder="Initial observations, particular characteristics, special conditions..."
+          ></textarea>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button class="btn-submit" id="btn-submit">
+          <i class="fa-regular fa-floppy-disk"></i> Save Animal
+        </button>
+        <button class="btn-cancel" id="btn-cancel">Cancel</button>
+      </div>
+    </div>
+
+    <script define:vars={{ experimentId: id }}>
+      const API = 'http://localhost:3000';
+      const EXP_ID = experimentId || window.location.pathname.split('/')[2];
+
+      document.getElementById('btn-back').onclick = () =>
+        (window.location.href = `/experiment/${EXP_ID}`);
+      document.getElementById('btn-cancel').onclick = () =>
+        (window.location.href = `/experiment/${EXP_ID}`);
+
+      async function init() {
+        const res = await fetch(`${API}/auth-check`, {
+          credentials: 'include',
+        });
+        if (!res.ok) {
+          window.location.href = '/';
+          return;
+        }
+
+        const params = new URLSearchParams(window.location.search);
+        const editId = params.get('edit');
+        if (editId) loadForEdit(editId);
+      }
+
+      async function loadForEdit(subjectId) {
+        const res = await fetch(
+          `${API}/experiments/${EXP_ID}/subjects/${subjectId}`,
+          { credentials: 'include' },
+        );
+        if (!res.ok) return;
+        const s = await res.json();
+
+        document.getElementById('page-title').textContent = 'Editar Animal';
+        document.getElementById('btn-submit').innerHTML =
+          `<i class="fa-regular fa-floppy-disk"></i>Save Changes`;
+        document.getElementById('identifier').value = s.identifier;
+        document.getElementById('weight').value = s.initialWeight;
+        document.getElementById('length').value = s.initialLength;
+        document.getElementById('dose').value = s.dose || '';
+        document.getElementById('notes').value = s.notes || '';
+      }
+
+      document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('btn-submit').onclick = async () => {
+          const errEl = document.getElementById('error-msg');
+          errEl.classList.remove('show');
+
+          const identifier = document.getElementById('identifier').value.trim();
+          const initialWeight = parseFloat(
+            document.getElementById('weight').value,
+          );
+          const initialLength = parseFloat(
+            document.getElementById('length').value,
+          );
+          const dose = document.getElementById('dose').value.trim();
+          const notes = document.getElementById('notes').value.trim();
+
+          if (!identifier) {
+            errEl.textContent = 'The identifier is required.';
+            errEl.classList.add('show');
+            return;
+          }
+
+          const params = new URLSearchParams(window.location.search);
+          const editId = params.get('edit');
+
+          const method = editId ? 'PUT' : 'POST';
+          const url = editId
+            ? `${API}/experiments/${EXP_ID}/subject/${editId}`
+            : `${API}/experiments/${EXP_ID}/subject`;
+
+          const res = await fetch(url, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              identifier,
+              initialWeight,
+              initialLength,
+              dose,
+              notes,
+            }),
+          });
+          const data = await res.json();
+
+          if (!res.ok) {
+            errEl.textContent = data.error;
+            errEl.classList.add('show');
+            return;
+          }
+          window.location.href = `/experiment/${EXP_ID}/animal/${data.id || editId}`;
+        };
+
+        init();
+      });
+    </script>
+  </body>
+</html>
+
+<style is:global>
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+  :root {
+    --green: #16a34a;
+    --green-dark: #15803d;
+    --gray-bg: #eef2f7;
+    --gray-100: #f5f7fa;
+    --gray-200: #e8ecf2;
+    --gray-400: #9aa3b2;
+    --gray-600: #6b7280;
+    --dark: #1a1f2e;
+    --white: #ffffff;
+    --radius: 14px;
+    --shadow: 0 2px 16px rgba(0, 0, 0, 0.07);
+  }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--gray-bg);
+    min-height: 100vh;
+    padding: 24px 20px;
+  }
+
+  .page-card {
+    background: var(--white);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 36px 40px;
+    max-width: 700px;
+    margin: 0 auto;
+  }
+  .page-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 32px;
+  }
+  .btn-back {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--gray-600);
+    padding: 6px;
+    border-radius: 8px;
+    transition: background 0.2s;
+    display: flex;
+  }
+  .btn-back:hover {
+    background: var(--gray-200);
+    color: var(--dark);
+  }
+  .page-header h1 {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--dark);
+  }
+
+  .section-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--dark);
+    margin-bottom: 18px;
+    padding-bottom: 10px;
+    border-bottom: 1.5px solid var(--gray-200);
+  }
+  .section {
+    margin-bottom: 30px;
+  }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 18px;
+  }
+  .field:last-child {
+    margin-bottom: 0;
+  }
+  .field label {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--dark);
+  }
+  .field input,
+  .field textarea {
+    padding: 13px 16px;
+    border: 1.5px solid var(--gray-200);
+    border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.95rem;
+    color: var(--dark);
+    background: var(--gray-100);
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .field input:focus,
+  .field textarea:focus {
+    border-color: var(--green);
+    background: var(--white);
+  }
+  .field input::placeholder,
+  .field textarea::placeholder {
+    color: var(--gray-400);
+  }
+  .field textarea {
+    resize: vertical;
+    min-height: 100px;
+  }
+  .row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  .error-msg {
+    background: #fee2e2;
+    color: #dc2626;
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 0.88rem;
+    font-weight: 500;
+    display: none;
+    margin-bottom: 20px;
+  }
+  .error-msg.show {
+    display: block;
+  }
+
+  .form-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 10px;
+  }
+  .btn-submit {
+    flex: 1;
+    padding: 15px;
+    border: none;
+    border-radius: 12px;
+    background: var(--green);
+    color: var(--white);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .btn-submit:hover {
+    background: var(--green-dark);
+  }
+  .btn-cancel {
+    padding: 15px 28px;
+    border: 1.5px solid var(--gray-200);
+    border-radius: 12px;
+    background: var(--white);
+    color: var(--gray-600);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-cancel:hover {
+    border-color: var(--dark);
+    color: var(--dark);
+  }
+
+  @media (max-width: 600px) {
+    .page-card {
+      padding: 24px 18px;
+    }
+    .row {
+      grid-template-columns: 1fr;
+    }
+    .form-actions {
+      flex-direction: column;
+    }
+  }
+</style>

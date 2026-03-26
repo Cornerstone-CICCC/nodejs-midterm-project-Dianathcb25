@@ -1,0 +1,405 @@
+---
+const currentYear = new Date().getFullYear();
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BioTrack</title>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  </head>
+  <body>
+    <header>
+      <h1>BioTrack <i class="fa-solid fa-flask-vial"></i></h1>
+      <p>Management of experiments and study subjects</p>
+    </header>
+
+    <div class="card">
+      <div class="tabs">
+        <button class="signin-tab" id="signin-tab">Sign In</button>
+        <button class="reg-tab" id="reg-tab">Resgister</button>
+      </div>
+
+      <form class="form active" id="signin-form">
+        <div id="signin-error" class="error-msg"></div>
+
+        <div class="field">
+          <label for="signin-username">Username</label>
+          <input
+            type="text"
+            id="signin-username"
+            name="username"
+            placeholder="Enter your username..."
+            required
+          />
+        </div>
+
+        <div class="field">
+          <label for="signin-password">Password</label>
+          <input
+            type="password"
+            id="signin-password"
+            name="password"
+            placeholder="Enter your password..."
+            required
+          />
+        </div>
+
+        <button type="submit" class="submit-btn"
+          ><i class="fa-solid fa-arrow-right-to-bracket"></i>Sign In</button
+        >
+      </form>
+
+      <form class="form" id="reg-form">
+        <div id="reg-error" class="error-msg"></div>
+
+        <div class="field">
+          <label for="reg-fullname">Full Name</label>
+          <input
+            type="text"
+            id="reg-fullname"
+            name="fullname"
+            placeholder="Enter your full name..."
+            required
+          />
+        </div>
+
+        <div class="field">
+          <label for="reg-username">Username</label>
+          <input
+            type="text"
+            id="reg-username"
+            name="username"
+            placeholder="Choose a username..."
+            required
+          />
+        </div>
+
+        <div class="field">
+          <label for="reg-password">Password</label>
+          <input
+            type="password"
+            id="reg-password"
+            name="password"
+            placeholder="Minimum 8 characters..."
+            required
+          />
+        </div>
+
+        <div class="field">
+          <label for="confirm-password">Confirm Password</label>
+          <input
+            type="password"
+            id="confirm-password"
+            name="password"
+            placeholder="Confirm your password..."
+            required
+          />
+        </div>
+
+        <button type="submit" class="submit-btn"
+          ><i class="fa-solid fa-user-plus"></i>Create Account</button
+        >
+      </form>
+    </div>
+
+    <footer>
+      <p>Management system for scientific research.</p>
+      <p>&copy;BioTrack {currentYear}.</p>
+    </footer>
+
+    <script>
+      const API = 'http://localhost:3000';
+
+      async function checkSession() {
+        const res = await fetch(`${API}/auth-check`, {
+          credentials: 'include',
+        });
+        if (res.ok) window.location.href = '/dashboard';
+      }
+      checkSession();
+
+      const tabSignIn = document.getElementById(
+        'signin-tab',
+      ) as HTMLButtonElement;
+      const tabRegister = document.getElementById(
+        'reg-tab',
+      ) as HTMLButtonElement;
+      const formSignIn = document.getElementById('signin-form');
+      const formRegister = document.getElementById('reg-form');
+
+      tabSignIn.addEventListener('click', () => {
+        tabSignIn.classList.add('active');
+        tabRegister.classList.remove('active');
+        formSignIn?.classList.add('active');
+        formRegister?.classList.remove('active');
+      });
+
+      tabRegister.addEventListener('click', () => {
+        tabRegister.classList.add('active');
+        tabSignIn.classList.remove('active');
+        formRegister?.classList.add('active');
+        formSignIn?.classList.remove('active');
+      });
+
+      formSignIn?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const errEl = document.getElementById('signin-error') as HTMLDivElement;
+        errEl.classList.remove('show');
+
+        const username = (
+          document.getElementById('signin-username') as HTMLInputElement
+        ).value;
+        const password = (
+          document.getElementById('signin-password') as HTMLInputElement
+        ).value;
+
+        const res = await fetch(`${API}/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ username, password }),
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          errEl.textContent = data.error;
+          errEl.classList.add('show');
+          return;
+        }
+        window.location.href = '/dashboard';
+      });
+
+      formRegister?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const errEl = document.getElementById('reg-error') as HTMLDivElement;
+        errEl.classList.remove('show');
+
+        const fullname = (
+          document.getElementById('reg-fullname') as HTMLInputElement
+        ).value;
+        const username = (
+          document.getElementById('reg-username') as HTMLInputElement
+        ).value;
+        const password = (
+          document.getElementById('reg-password') as HTMLInputElement
+        ).value;
+        const confirm = (
+          document.getElementById('confirm-password') as HTMLInputElement
+        ).value;
+
+        if (password !== confirm) {
+          errEl.textContent = 'The passwords do not match.';
+          errEl.classList.add('show');
+          return;
+        }
+
+        const res = await fetch(`${API}/auth/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ fullname, username, password }),
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          errEl.textContent = data.error;
+          errEl.classList.add('show');
+          return;
+        }
+        window.location.href = '/dashboard';
+      });
+    </script>
+  </body>
+</html>
+
+<style>
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  :root {
+    --purple: #5b4fe8;
+    --purple-dark: #4a3fd4;
+    --gray-bg: #eef2f7;
+    --gray-100: #f5f7fa;
+    --gray-200: #e8ecf2;
+    --gray-400: #9aa3b2;
+    --gray-600: #6b7280;
+    --dark: #1a1f2e;
+    --white: #ffffff;
+    --radius: 14px;
+    --shadow: 0 4px 24px rgba(91, 79, 232, 0.1);
+  }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--gray-bg);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 16px;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 28px;
+  }
+
+  header p {
+    color: var(--gray-600);
+    font-size: 0.95rem;
+  }
+
+  .card {
+    background: var(--white);
+    border-radius: 20px;
+    padding: 32px 36px;
+    width: 100%;
+    max-width: 480px;
+    box-shadow: var(--shadow);
+  }
+
+  .tabs {
+    display: flex;
+    background: var(--gray-200);
+    border-radius: 12px;
+    padding: 4px;
+    margin-bottom: 28px;
+    gap: 4px;
+  }
+  .signin-tab,
+  .reg-tab {
+    flex: 1;
+    padding: 10px;
+    border: none;
+    border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: transparent;
+    color: var(--gray-600);
+  }
+  .signin-tab.active,
+  .reg-tab.active {
+    background: var(--purple);
+    color: var(--white);
+    box-shadow: 0 2px 8px rgba(91, 79, 232, 0.3);
+  }
+
+  .form {
+    display: none;
+    flex-direction: column;
+    gap: 18px;
+  }
+  .form.active {
+    display: flex;
+  }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .field label {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--dark);
+  }
+  .field input {
+    padding: 13px 16px;
+    border: 1.5px solid var(--gray-200);
+    border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.95rem;
+    color: var(--dark);
+    background: var(--gray-100);
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .field input:focus {
+    border-color: var(--purple);
+    background: var(--white);
+  }
+  .field input::placeholder {
+    color: var(--gray-400);
+  }
+
+  .row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+
+  .submit-btn {
+    padding: 15px;
+    border: none;
+    border-radius: 12px;
+    background: var(--purple);
+    color: var(--white);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition:
+      background 0.2s,
+      transform 0.1s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 4px;
+  }
+  .submit-btn:hover {
+    background: var(--purple-dark);
+  }
+  .submit-btn:active {
+    transform: scale(0.98);
+  }
+
+  /* Error */
+  .error-msg {
+    background: #fee2e2;
+    color: #dc2626;
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 0.88rem;
+    font-weight: 500;
+    display: none;
+  }
+  .error-msg.show {
+    display: block;
+  }
+
+  /* Footer */
+  .footer {
+    margin-top: 24px;
+    color: var(--gray-600);
+    font-size: 0.85rem;
+    text-align: center;
+  }
+
+  @media (max-width: 480px) {
+    .card {
+      padding: 24px 20px;
+    }
+    .row {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

@@ -1,0 +1,794 @@
+---
+const { id, animalId } = Astro.params;
+export const prerender = false;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Animal - BioTrack</title>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  </head>
+  <body>
+    <div class="top-bar">
+      <button class="back-btn" id="back-btn"
+        ><i class="fa-solid fa-arrow-left-long"></i></button
+      >
+
+      <div>
+        <button class="edit-btn" id="edit-btn">
+          <i class="fa-regular fa-pen-to-square"></i>Edit
+        </button>
+        <button class="delete-animal-btn" id="delete-animal-btn">
+          <i class="fa-regular fa-trash-can"></i></button
+        >
+      </div>
+    </div>
+
+    <div class="hero-card" id="hero-card">
+      <div class="hero-left">
+        <h1 id="hero-id"></h1>
+        <div class="species" id="hero-species"></div>
+        <div class="hero-tags" id="hero-tags"></div>
+        <div class="hero-date" id="hero-date"></div>
+      </div>
+      <div class="hero-right">
+        <div class="week-label">Follow-up weeks</div>
+        <div class="week-num" id="week-num">0</div>
+      </div>
+    </div>
+
+    <div class="metrics-grid">
+      <div class="metric-card">
+        <div class="metric-icon blue">
+          <i class="fa-solid fa-magnifying-glass"></i>
+        </div>
+
+        <div>
+          <div class="metric-label">Current Weight</div>
+          <div class="metric-value" id="metric-weight">—</div>
+          <div class="metric-sub" id="metric-weight-initial"></div>
+        </div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-icon green"><i class="fa-solid fa-bars"></i></div>
+
+        <div>
+          <div class="metric-label">Current Length</div>
+          <div class="metric-value" id="metric-length">—</div>
+          <div class="metric-sub" id="metric-length-initial"></div>
+        </div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-icon purple">
+          <i class="fa-solid fa-arrow-trend-up"></i>
+        </div>
+
+        <div>
+          <div class="metric-label">Change in Weight</div>
+          <div class="metric-value" id="metric-change">—</div>
+          <div class="metric-sub" id="metric-change-pct"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="info-card">
+      <div class="info-icon orange">
+        <!-- Layout with Sidebar -->
+      </div>
+      <div>
+        <div class="info-label">Dose/Treatment</div>
+        <div class="info-value" id="info-dose">—</div>
+      </div>
+    </div>
+
+    <div class="info-card">
+      <div class="info-icon dark">
+        <i class="fa-solid fa-clipboard-list"></i>
+      </div>
+      <div>
+        <div class="info-label">General Notes</div>
+        <div class="info-value" id="info-notes">—</div>
+      </div>
+    </div>
+
+    <div class="logs-card">
+      <div class="logs-header">
+        <div>
+          <h2>Weekly Records</h2>
+          <p>Monitoring of weight, height and observations</p>
+        </div>
+        <button class="btn-new-log" id="btn-new-log">
+          <i class="fa-solid fa-plus"></i> New Registration
+        </button>
+      </div>
+      <div id="logs-container"></div>
+    </div>
+
+    <div class="overlay" id="log-overlay">
+      <div class="modal-card">
+        <h3>New Weekly Record</h3>
+        <div class="modal-row">
+          <div class="modal-field">
+            <label>Weight (grams)</label>
+            <input type="number" id="log-weight" value="0" min="0" />
+          </div>
+          <div class="modal-field">
+            <label>Length (centimeters)</label>
+            <input type="number" id="log-length" value="0" min="0" />
+          </div>
+        </div>
+        <div class="modal-field">
+          <label>Observations</label>
+          <textarea id="log-notes" placeholder="Behavior, general condition..."
+          ></textarea>
+        </div>
+
+        <div class="modal-actions">
+          <button class="btn-modal-save" id="btn-save-log">
+            <i class="fa-regular fa-floppy-disk"></i> Save Record</button
+          >
+          <button
+            class="btn-modal-cancel"
+            onclick="document.getElementById('log-overlay').classList.remove('show')"
+            >Cancelar</button
+          >
+        </div>
+      </div>
+    </div>
+
+    <div class="overlay" id="delete-overlay">
+      <div class="modal-card" style="text-align:center;">
+        <h3>Eliminate this animal?</h3>
+        <p>This action cannot be undone.</p>
+        <div class="modal-actions" style="justify-content:center;">
+          <button id="btn-confirm-delete">Delete</button>
+          <button
+            class="btn-modal-cancel"
+            onclick="document.getElementById('delete-overlay').classList.remove('show')"
+            >Cancel</button
+          >
+        </div>
+      </div>
+    </div>
+
+    <script define:vars={{ experimentId: id, subjectId: animalId }}>
+      const API = 'http://localhost:3000';
+      const EXP_ID = experimentId || window.location.pathname.split('/')[2];
+      const ANIMAL_ID = subjectId || window.location.pathname.split('/')[4];
+
+      let subject = null;
+
+      async function init() {
+        const res = await fetch(`${API}/auth-check`, {
+          credentials: 'include',
+        });
+        if (!res.ok) {
+          window.location.href = '/';
+          return;
+        }
+
+        const expRes = await fetch(`${API}/experiments/${EXP_ID}`, {
+          credentials: 'include',
+        });
+        const exp = expRes.ok ? await expRes.json() : null;
+
+        const subRes = await fetch(
+          `${API}/experiments/${EXP_ID}/subject/${ANIMAL_ID}`,
+          { credentials: 'include' },
+        );
+        if (!subRes.ok) {
+          window.location.href = `/experiment/${EXP_ID}`;
+          return;
+        }
+        subject = await subRes.json();
+        renderSubject(subject, exp);
+      }
+
+      function renderSubject(s, exp) {
+        const lastLog = s.logs?.[s.logs.length - 1];
+        const currentWeight = lastLog?.weight ?? s.initialWeight;
+        const currentLength = lastLog?.length ?? s.initialLength;
+        const weightChange = currentWeight - s.initialWeight;
+        const weightChangePct =
+          s.initialWeight > 0
+            ? ((weightChange / s.initialWeight) * 100).toFixed(1)
+            : '0.0';
+        const weeks = s.logs?.length ?? 0;
+        const date = new Date(s.createdAt).toLocaleDateString('en-US', {
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric',
+        });
+
+        document.getElementById('hero-id').textContent = `ID: ${s.identifier}`;
+        document.getElementById('hero-species').textContent =
+          exp?.species ?? '';
+        document.getElementById('week-num').textContent = weeks;
+        document.getElementById('hero-date').textContent = `Ingreso: ${date}`;
+        document.getElementById('hero-tags').innerHTML = `
+          <span class="hero-tag">${exp?.groupName ?? ''}</span>
+          <span class="hero-tag">Experimento: ${exp?.name ?? ''}</span>`;
+
+        document.getElementById('metric-weight').textContent =
+          `${currentWeight} g`;
+        document.getElementById('metric-weight-initial').textContent =
+          `Initial: ${s.initialWeight} g`;
+        document.getElementById('metric-length').textContent =
+          `${currentLength} cm`;
+        document.getElementById('metric-length-initial').textContent =
+          `Initial: ${s.initialLength} cm`;
+
+        const changeEl = document.getElementById('metric-change');
+        changeEl.textContent = `${weightChange >= 0 ? '+' : ''}${weightChange.toFixed(2)} g`;
+        changeEl.className = `metric-value ${weightChange >= 0 ? 'metric-positive' : 'metric-negative'}`;
+        document.getElementById('metric-change-pct').textContent =
+          `${weightChange >= 0 ? '+' : ''}${weightChangePct}%`;
+
+        document.getElementById('info-dose').textContent = s.dose || 'N/A';
+        document.getElementById('info-notes').textContent = s.notes || '—';
+
+        renderLogs(s.logs ?? [], s, exp);
+      }
+
+      function renderLogs(logs, s, exp) {
+        const container = document.getElementById('logs-container');
+        if (logs.length === 0) {
+          container.innerHTML = `
+            <div class="empty-state">
+              <i class="fa-regular fa-calendar-days"></i>
+              <h3>There are no weekly records</h3>
+              <p>Begin by adding the first tracking record</p>
+              <button class="btn-new-log" style="margin-top:8px" onclick="document.getElementById('log-overlay').classList.add('show')">
+                <i class="fa-solid fa-plus"></i>
+                Add First Record
+              </button>
+            </div>`;
+          return;
+        }
+
+        const list = document.createElement('div');
+        list.className = 'logs-list';
+        logs.forEach((log, i) => {
+          const date = new Date(log.timestamp).toLocaleDateString('en-US', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric',
+          });
+          const entry = document.createElement('div');
+          entry.className = 'log-entry';
+          entry.innerHTML = `
+            <div class="log-entry-header">
+              <span class="log-week">Week ${i + 1}</span>
+              <span class="log-date">${date}</span>
+            </div>
+            <div class="log-stats">
+              ${log.weight != null ? `<div class="log-stat"><div class="lbl">Weight</div><div class="val">${log.weight} g</div></div>` : ''}
+              ${log.length != null ? `<div class="log-stat"><div class="lbl">Length</div><div class="val">${log.length} cm</div></div>` : ''}
+            </div>
+            ${log.notes ? `<div class="log-notes">${log.notes}</div>` : ''}`;
+          list.appendChild(entry);
+        });
+        container.innerHTML = '';
+        container.appendChild(list);
+      }
+
+      document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('back-btn').onclick = () =>
+          (window.location.href = `/experiment/${EXP_ID}`);
+        document.getElementById('edit-btn').onclick = () =>
+          (window.location.href = `/experiment/${EXP_ID}/animal/new?edit=${ANIMAL_ID}`);
+        document.getElementById('delete-animal-btn').onclick = () =>
+          document.getElementById('delete-overlay').classList.add('show');
+        document.getElementById('btn-new-log').onclick = () =>
+          document.getElementById('log-overlay').classList.add('show');
+
+        document.getElementById('btn-save-log').onclick = async () => {
+          const weight = parseFloat(
+            document.getElementById('log-weight').value,
+          );
+          const length = parseFloat(
+            document.getElementById('log-length').value,
+          );
+          const notes = document.getElementById('log-notes').value.trim();
+
+          const res = await fetch(
+            `${API}/experiments/${EXP_ID}/subject/${ANIMAL_ID}/logs`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({ weight, length, notes }),
+            },
+          );
+          if (res.ok) {
+            document.getElementById('log-overlay').classList.remove('show');
+            document.getElementById('log-weight').value = '0';
+            document.getElementById('log-length').value = '0';
+            document.getElementById('log-notes').value = '';
+            init();
+          }
+        };
+
+        document.getElementById('btn-confirm-delete').onclick = async () => {
+          const res = await fetch(
+            `${API}/experiments/${EXP_ID}/subject/${ANIMAL_ID}`,
+            {
+              method: 'DELETE',
+              credentials: 'include',
+            },
+          );
+          if (res.ok) window.location.href = `/experiment/${EXP_ID}`;
+        };
+        init();
+      });
+    </script>
+  </body>
+</html>
+
+<style>
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+  :root {
+    --purple: #5b4fe8;
+    --green: #16a34a;
+    --green-dark: #15803d;
+    --blue: #2563eb;
+    --orange: #ea580c;
+    --gray-bg: #eef2f7;
+    --gray-100: #f5f7fa;
+    --gray-200: #e8ecf2;
+    --gray-400: #9aa3b2;
+    --gray-600: #6b7280;
+    --dark: #1a1f2e;
+    --white: #ffffff;
+    --radius: 14px;
+    --shadow: 0 2px 16px rgba(0, 0, 0, 0.07);
+  }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--gray-bg);
+    min-height: 100vh;
+    padding: 24px 20px;
+  }
+
+  .top-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    gap: 12px;
+  }
+  .btn-back {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--gray-600);
+    padding: 8px;
+    border-radius: 8px;
+    transition: background 0.2s;
+    display: flex;
+  }
+  .btn-back:hover {
+    background: var(--white);
+  }
+  .btn-edit {
+    padding: 9px 18px;
+    background: var(--purple);
+    color: var(--white);
+    border: none;
+    border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: background 0.2s;
+  }
+  .btn-edit:hover {
+    background: #4a3fd4;
+  }
+
+  /* Hero */
+  .hero-card {
+    background: linear-gradient(135deg, #16a34a 0%, #059669 60%, #0d9488 100%);
+    border-radius: var(--radius);
+    padding: 28px 32px;
+    margin-bottom: 20px;
+    color: white;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 20px;
+  }
+  .hero-left h1 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .hero-left .species {
+    opacity: 0.85;
+    font-size: 0.9rem;
+    margin-bottom: 14px;
+  }
+  .hero-tags {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+  }
+  .hero-tag {
+    background: rgba(255, 255, 255, 0.2);
+    padding: 3px 12px;
+    border-radius: 20px;
+    font-size: 0.78rem;
+    font-weight: 600;
+  }
+  .hero-date {
+    opacity: 0.7;
+    font-size: 0.8rem;
+    margin-top: 8px;
+  }
+  .hero-right {
+    text-align: right;
+    flex-shrink: 0;
+  }
+  .hero-right .week-label {
+    font-size: 0.75rem;
+    opacity: 0.8;
+  }
+  .hero-right .week-num {
+    font-size: 2.5rem;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  /* Metrics grid */
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    margin-bottom: 14px;
+  }
+  .metric-card {
+    background: var(--white);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+    box-shadow: var(--shadow);
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .metric-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .metric-icon.blue {
+    background: #eff6ff;
+  }
+  .metric-icon.green {
+    background: #f0fdf4;
+  }
+  .metric-icon.purple {
+    background: #f5f3ff;
+  }
+  .metric-label {
+    font-size: 0.75rem;
+    color: var(--gray-600);
+    margin-bottom: 2px;
+  }
+  .metric-value {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--dark);
+  }
+  .metric-sub {
+    font-size: 0.72rem;
+    color: var(--gray-400);
+    margin-top: 1px;
+  }
+  .metric-positive {
+    color: var(--green);
+  }
+  .metric-negative {
+    color: #dc2626;
+  }
+
+  /* Info cards */
+  .info-card {
+    background: var(--white);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+    box-shadow: var(--shadow);
+    margin-bottom: 14px;
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+  }
+  .info-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .info-icon.orange {
+    background: #fff7ed;
+  }
+  .info-icon.dark {
+    background: #f3f4f6;
+  }
+  .info-label {
+    font-size: 0.78rem;
+    color: var(--gray-600);
+    margin-bottom: 4px;
+  }
+  .info-value {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--dark);
+    white-space: pre-line;
+  }
+
+  /* Logs section */
+  .logs-card {
+    background: var(--white);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 28px;
+  }
+  .logs-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 22px;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .logs-header h2 {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--dark);
+  }
+  .logs-header p {
+    font-size: 0.82rem;
+    color: var(--gray-600);
+    margin-top: 2px;
+  }
+  .btn-new-log {
+    padding: 10px 18px;
+    background: var(--purple);
+    color: var(--white);
+    border: none;
+    border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: background 0.2s;
+    white-space: nowrap;
+  }
+  .btn-new-log:hover {
+    background: #4a3fd4;
+  }
+
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 48px 20px;
+    gap: 10px;
+  }
+  .empty-state h3 {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--dark);
+  }
+  .empty-state p {
+    color: var(--gray-600);
+    font-size: 0.88rem;
+  }
+
+  /* Log entries */
+  .logs-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .log-entry {
+    border: 1.5px solid var(--gray-200);
+    border-radius: 12px;
+    padding: 16px 20px;
+  }
+  .log-entry-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  .log-week {
+    font-weight: 700;
+    color: var(--dark);
+    font-size: 0.9rem;
+  }
+  .log-date {
+    font-size: 0.78rem;
+    color: var(--gray-400);
+  }
+  .log-stats {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+  .log-stat .lbl {
+    font-size: 0.72rem;
+    color: var(--gray-600);
+  }
+  .log-stat .val {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--dark);
+  }
+  .log-notes {
+    margin-top: 10px;
+    font-size: 0.85rem;
+    color: var(--gray-600);
+    font-style: italic;
+  }
+
+  /* Log modal */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+    padding: 20px;
+  }
+  .overlay.show {
+    display: flex;
+  }
+  .modal-card {
+    background: var(--white);
+    border-radius: var(--radius);
+    padding: 32px;
+    max-width: 480px;
+    width: 100%;
+  }
+  .modal-card h3 {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--dark);
+    margin-bottom: 20px;
+  }
+  .modal-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 16px;
+  }
+  .modal-field label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--dark);
+  }
+  .modal-field input,
+  .modal-field textarea {
+    padding: 11px 14px;
+    border: 1.5px solid var(--gray-200);
+    border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.93rem;
+    color: var(--dark);
+    background: var(--gray-100);
+    outline: none;
+  }
+  .modal-field input:focus,
+  .modal-field textarea:focus {
+    border-color: var(--purple);
+    background: var(--white);
+  }
+  .modal-field textarea {
+    resize: vertical;
+    min-height: 80px;
+  }
+  .modal-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .modal-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 8px;
+  }
+  .btn-modal-save {
+    flex: 1;
+    padding: 13px;
+    background: var(--purple);
+    color: var(--white);
+    border: none;
+    border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .btn-modal-save:hover {
+    background: #4a3fd4;
+  }
+  .btn-modal-cancel {
+    padding: 13px 20px;
+    background: var(--gray-200);
+    color: var(--dark);
+    border: none;
+    border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .btn-confirm-delete {
+    padding: 9px 18px;
+    background: #fee2e2;
+    color: #dc2626;
+    border: none;
+    border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  @media (max-width: 640px) {
+    body {
+      padding: 16px 12px;
+    }
+    .metrics-grid {
+      grid-template-columns: 1fr;
+    }
+    .hero-card {
+      flex-direction: column;
+    }
+    .hero-right {
+      text-align: left;
+    }
+    .logs-card {
+      padding: 20px 16px;
+    }
+    .modal-row {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

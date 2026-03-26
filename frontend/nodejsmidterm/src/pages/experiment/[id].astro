@@ -1,0 +1,538 @@
+---
+const { id } = Astro.params;
+export const prerender = false;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Experiment - BioTrack</title>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Edu+AU+VIC+WA+NT+Guides:wght@400..700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div class="top-bar">
+      <button class="back-btn" onclick="window.location.href='/dashboard'"
+        ><i class="fa-solid fa-arrow-left-long"></i></button
+      >
+
+      <div class="top-actions">
+        <button class="edit-btn" id="edit-btn"
+          ><i class="fa-regular fa-pen-to-square"></i>Edit Experiment</button
+        >
+        <button class="delete-btn" id="delete-btn"
+          ><i class="fa-solid fa-trash-can"></i></button
+        >
+      </div>
+    </div>
+
+    <div class="summary-card" id="summary-card">
+      <h1 id="exp-name">Loading...</h1>
+      <div class="species" id="exp-species"></div>
+      <div class="summary-tags" id="summary-tags"></div>
+      <div class="summary-desc" id="exp-desc"></div>
+    </div>
+
+    <div class="subjects-card">
+      <div class="subjects-header">
+        <div>
+          <h2>Experimental Subjects</h2>
+          <p id="subjects-count">Total: 0 animals</p>
+        </div>
+        <button class="add-animal-btn" id="add-aimal-btn"
+          ><i class="fa-solid fa-plus"></i>Add Animal
+        </button>
+      </div>
+      <div id="subjects-container"></div>
+    </div>
+
+    <div class="overlay" id="delete-overlay">
+      <div class="confirm-card">
+        <h3>Delete this experiment?</h3>
+        <p>
+          This action will terminate the experiment and all its subjects. It
+          cannot be undone.
+        </p>
+        <div class="confirm-actions">
+          <button class="delete-confirm-btn" id="confirm-delete-btn"
+            >Delete</button
+          >
+          <button
+            class="cancel-confirm-btn"
+            onclick="document.getElementById('delete-overlay').classList.remove('show')"
+            >Cancel</button
+          >
+        </div>
+      </div>
+    </div>
+
+    <script define:vars={{ experimentId: id }}>
+      const API = 'http://localhost:3000';
+      const EXP_ID = experimentId || window.location.pathname.split('/').pop();
+
+      async function init() {
+        const authRes = await fetch(`${API}/auth-check`, {
+          credentials: 'include',
+        });
+        if (!authRes.ok) {
+          window.location.href = '/';
+          return;
+        }
+        loadExperiment();
+        loadSubjects();
+      }
+
+      async function loadExperiment() {
+        const res = await fetch(`${API}/experiments/${EXP_ID}`, {
+          credentials: 'include',
+        });
+
+        if (!res.ok) {
+          window.location.href = '/dashboard';
+          return;
+        }
+        const exp = await res.json();
+
+        document.getElementById('exp-name').textContent = exp.name;
+        document.getElementById('exp-species').textContent = exp.species;
+        document.getElementById('exp-desc').textContent = exp.description || '';
+
+        const date = new Date(exp.createdAt).toLocaleDateString('en-US', {
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric',
+        });
+        document.getElementById('summary-tags').innerHTML = `
+        <span class="summary-tag">Group: ${exp.groupName}</span>
+        <span class="summary-tag">Created: ${date}</span>
+        `;
+
+        document.getElementById('edit-btn').onclick = () => {
+          window.location.href = `/experiment/new?edit=${EXP_ID}`;
+        };
+      }
+
+      async function loadSubjects() {
+        const res = await fetch(`${API}/experiments/${EXP_ID}/subject`, {
+          credentials: 'include',
+        });
+        const subjects = await res.json();
+        document.getElementById('subjects-count').textContent =
+          `Total: ${subjects.length} animals`;
+        renderSubjects(subjects);
+      }
+
+      function renderSubjects(subjects) {
+        const container = document.getElementById('subjects-container');
+
+        if (subjects.length === 0) {
+          container.innerHTML = `
+            <div class="empty-state">
+                <h3>There are no registered animals</h3>
+                <p>Begin by adding the first experimental subject.</p>
+                <button><i class="fa-solid fa-plus"></i> Add First Animal </button>
+            </div>
+            `;
+          document.getElementById('add-first-btn').onclick = () => {
+            window.location.href = `/experiment${EXP_ID}/animal/new`;
+          };
+          return;
+        }
+
+        const list = document.createElement('div');
+        list.className = 'subjects-list';
+        for (const s of subjects) {
+          const a = document.createElement('a');
+          a.href = `/experiment/${EXP_ID}/animal/${s.id}`;
+          a.className = 'subject-row';
+          a.innerHTML = `
+            <div>
+                <div class="subject-id">ID: ${s.identifier}</div>
+                <div class="subject-meta">Dose: ${s.dose || 'N/A'}</div>
+            </div>
+
+            <div class="subject-stats">
+                <div class="subject-stat">
+                    <div class="val">${s.initialWeight}g</div>
+                    <div class="lbl">Weight</div>
+                </div>
+                <div class="subject-stat">
+                    <div class="val">${s.initialLength}cm</div>
+                    <div class="lbl">Lenght</div>
+                </div>
+                <div class="subject-stat">
+                    <div class="val">${s.logs?.length || 0}</div>
+                    <div class="lbl">Records</div>
+                </div>
+            </div>
+            `;
+          list.appendChild(a);
+        }
+        container.innerHTML = '';
+        container.appendChild(list);
+      }
+
+      document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('add-aimal-btn').onclick = () => {
+          window.location.href = `/experiment/${EXP_ID}/animal/new`;
+        };
+
+        document.getElementById('delete-btn').onclick = () => {
+          document.getElementById('delete-overlay').classList.add('show');
+        };
+
+        document.getElementById('confirm-delete-btn').onclick = async () => {
+          const res = await fetch(`${API}/experiments/${EXP_ID}`, {
+            method: 'DELETE',
+            credentials: 'include',
+          });
+          if (res.ok) window.location.href = '/dashboard';
+        };
+
+        init();
+      });
+    </script>
+  </body>
+</html>
+
+<style is:global>
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+  :root {
+    --purple: #5b4fe8;
+    --purple-dark: #4a3fd4;
+    --green: #16a34a;
+    --green-dark: #15803d;
+    --orange: #ea580c;
+    --teal: #0891b2;
+    --gray-bg: #eef2f7;
+    --gray-100: #f5f7fa;
+    --gray-200: #e8ecf2;
+    --gray-400: #9aa3b2;
+    --gray-600: #6b7280;
+    --dark: #1a1f2e;
+    --white: #ffffff;
+    --radius: 14px;
+    --shadow: 0 2px 16px rgba(91, 79, 232, 0.08);
+  }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--gray-bg);
+    min-height: 100vh;
+    padding: 24px 20px;
+  }
+
+  .top-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .back-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--gray-600);
+    padding: 8px;
+    border-radius: 8px;
+    transition: background 0.2s;
+    display: flex;
+  }
+  .back-btn:hover {
+    background: var(--white);
+    color: var(--dark);
+  }
+
+  .top-actions {
+    display: flex;
+    gap: 10px;
+  }
+  .edit-btn {
+    padding: 9px 18px;
+    background: var(--purple);
+    color: var(--white);
+    border: none;
+    border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: background 0.2s;
+  }
+  .edit-btn:hover {
+    background: var(--purple-dark);
+  }
+  .delete-btn {
+    font-family: 'DM Sans', sans-serif;
+    padding: 9px 18px;
+    background: #fee2e2;
+    color: #dc2626;
+    border: none;
+    border-radius: 10px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: background 0.2s;
+  }
+  .delete-btn:hover {
+    background: #fecaca;
+  }
+
+  .summary-card {
+    background: linear-gradient(135deg, #5b4fe8 0%, #7c3aed 60%, #a855f7 100%);
+    border-radius: var(--radius);
+    padding: 28px 32px;
+    margin-bottom: 20px;
+    color: white;
+  }
+  .summary-card h1 {
+    font-size: clamp(1.3rem, 4vw, 1.8rem);
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .summary-card .species {
+    opacity: 0.85;
+    font-size: 0.95rem;
+    margin-bottom: 16px;
+  }
+  .summary-tags {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+  }
+  .summary-tag {
+    background: rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(4px);
+    padding: 4px 14px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+  .summary-desc {
+    opacity: 0.8;
+    font-size: 0.88rem;
+    margin-top: 10px;
+    line-height: 1.5;
+  }
+
+  .subjects-card {
+    background: var(--white);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 28px;
+  }
+  .subjects-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 22px;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .subjects-header h2 {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--dark);
+  }
+  .subjects-header p {
+    font-size: 0.82rem;
+    color: var(--gray-600);
+    margin-top: 2px;
+  }
+  .add-animal-btn {
+    padding: 10px 18px;
+    background: var(--green);
+    color: var(--white);
+    border: none;
+    border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: background 0.2s;
+    white-space: nowrap;
+  }
+  .add-animal-btn:hover {
+    background: var(--green-dark);
+  }
+
+  /* Empty state */
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 48px 20px;
+    gap: 10px;
+  }
+  .empty-state h3 {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--dark);
+  }
+  .empty-state p {
+    color: var(--gray-600);
+    font-size: 0.88rem;
+  }
+
+  .subjects-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .subject-row {
+    border: 1.5px solid var(--gray-200);
+    border-radius: 12px;
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    cursor: pointer;
+    transition:
+      border-color 0.2s,
+      box-shadow 0.15s;
+    text-decoration: none;
+    color: inherit;
+  }
+  .subject-row:hover {
+    border-color: var(--green);
+    box-shadow: 0 2px 12px rgba(22, 163, 74, 0.1);
+  }
+  .subject-id {
+    font-weight: 700;
+    color: var(--dark);
+    font-size: 0.95rem;
+  }
+  .subject-meta {
+    font-size: 0.8rem;
+    color: var(--gray-600);
+    margin-top: 2px;
+  }
+  .subject-stats {
+    display: flex;
+    gap: 20px;
+  }
+  .subject-stat {
+    text-align: center;
+  }
+  .subject-stat .val {
+    font-weight: 700;
+    color: var(--dark);
+    font-size: 0.9rem;
+  }
+  .subject-stat .lbl {
+    font-size: 0.72rem;
+    color: var(--gray-400);
+  }
+  .chevron {
+    color: var(--gray-400);
+    flex-shrink: 0;
+  }
+
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+    padding: 20px;
+  }
+  .overlay.show {
+    display: flex;
+  }
+  .confirm-card {
+    background: var(--white);
+    border-radius: var(--radius);
+    padding: 32px;
+    max-width: 420px;
+    width: 100%;
+    text-align: center;
+  }
+  .confirm-card h3 {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--dark);
+    margin-bottom: 10px;
+  }
+  .confirm-card p {
+    color: var(--gray-600);
+    font-size: 0.9rem;
+    margin-bottom: 24px;
+  }
+  .confirm-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+  }
+  .delete-confirm-btn {
+    padding: 12px 24px;
+    background: #dc2626;
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .delete-confirm-btn:hover {
+    background: #b91c1c;
+  }
+  .cancel-confirm-btn {
+    padding: 12px 24px;
+    background: var(--gray-200);
+    color: var(--dark);
+    border: none;
+    border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  @media (max-width: 600px) {
+    body {
+      padding: 16px 12px;
+    }
+    .hero-card {
+      padding: 22px 20px;
+    }
+    .stats-row {
+      grid-template-columns: 1fr;
+    }
+    .subjects-card {
+      padding: 20px 16px;
+    }
+    .subject-stats {
+      display: none;
+    }
+  }
+</style>

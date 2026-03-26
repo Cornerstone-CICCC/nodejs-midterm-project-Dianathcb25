@@ -1,0 +1,422 @@
+---
+import { date } from 'astro:schema';
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>My Experiments</title>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Edu+AU+VIC+WA+NT+Guides:wght@400..700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <nav class="navbar">
+      <div class="nav-title">
+        <h2><i class="fa-solid fa-flask-vial"></i> My Experiments</h2>
+        <p id="welcome-text">Welcome</p>
+      </div>
+
+      <div class="nav-actions">
+        <button class="new-exp-btn" id="new-exp-btn"
+          ><i class="fa-solid fa-plus"></i> New Experiment</button
+        >
+        <button class="logout-btn" id="logout-btn"
+          ><i class="fa-solid fa-arrow-right-from-bracket"></i> Log Out</button
+        >
+      </div>
+    </nav>
+
+    <div class="search-bar">
+      <div class="search-input-wrap">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input
+          type="text"
+          id="search-input"
+          placeholder="Find by name, species or group..."
+        />
+      </div>
+    </div>
+
+    <div class="content-card">
+      <div id="exp-container">
+        <div class="empty-state">
+          <h3>Loading...</h3>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const API = 'http://localhost:3000';
+      let allExperiments: any[] = [];
+
+      async function init() {
+        const res = await fetch(`${API}/auth-check`, {
+          credentials: 'include',
+        });
+        if (!res.ok) {
+          window.location.href = '/';
+          return;
+        }
+        const user = await res.json();
+        const welcomeEl = document.getElementById(
+          'welcome-text',
+        ) as HTMLParagraphElement;
+        welcomeEl.textContent = `Welcome, ${user.fullname}`;
+        loadExpermients();
+      }
+
+      async function loadExpermients() {
+        const res = await fetch(`${API}/experiments`, {
+          credentials: 'include',
+        });
+        const data = await res.json();
+        allExperiments = data;
+        renderExperiments(data);
+        renderExperiments(data);
+      }
+
+      function renderExperiments(experiments: any[]) {
+        const container = document.getElementById(
+          'exp-container',
+        ) as HTMLDivElement;
+        const contentCard = document.querySelector(
+          '.content-card',
+        ) as HTMLDivElement;
+
+        if (experiments.length === 0) {
+          contentCard.style.display = 'flex';
+          container.innerHTML = `
+                <div class="empty-state">
+                    <i class="fa-solid fa-flask empty-icon"></i>
+                    <h3>There are no experiments yet.</h3>
+
+                    <p>Start by creating your first experiment.</p>
+
+                    <button class="new-exp-btn" onclick="window.location.href='/experiment/new'"><i class="fa-solid fa-plus"></i> Create First Experiment</button>
+                </div>
+                `;
+          return;
+        }
+
+        contentCard.style.display = 'block';
+        container.style.width = '100%';
+
+        const expGrid = experiments
+          .map((exp) => {
+            const date = new Date(exp.createdAt).toLocaleDateString('en-US', {
+              day: 'numeric',
+              month: 'long',
+              year: 'numeric',
+            });
+            return `
+          <a href="/experiment/${exp.id}" class="exp-card">
+                <div class="exp-card-header">
+                <div>
+                    <div class="exp-card-title">${exp.name}</div>
+                    <div class="exp-card-species">${exp.species}</div>
+                </div>
+                <span class="exp-badge">${exp.groupName}</span>
+                </div>
+                ${exp.description ? `<p style="font-size:0.85rem;color:var(--gray-600);line-height:1.4;">${exp.description}</p>` : ''}
+                <div class="exp-card-date">Created: ${date}</div>
+                </a>
+                `;
+          })
+          .join('');
+        container.innerHTML = `<div class="experiments-grid">${expGrid}</div>`;
+      }
+
+      const searchInput = document.getElementById(
+        'search-input',
+      ) as HTMLInputElement;
+      let searchTimer: ReturnType<typeof setTimeout>;
+
+      searchInput.addEventListener('input', () => {
+        const q = searchInput.value.trim();
+        if (!q) {
+          renderExperiments(allExperiments);
+          return;
+        }
+        const filtered = allExperiments.filter(
+          (exp) =>
+            exp.name.toLowerCase().includes(q) ||
+            exp.species.toLowerCase().includes(q) ||
+            exp.groupName.toLowerCase().includes(q),
+        );
+        renderExperiments(filtered);
+      });
+
+      document.getElementById('new-exp-btn')?.addEventListener('click', () => {
+        window.location.href = '/experiment/new';
+      });
+
+      document
+        .getElementById('logout-btn')
+        ?.addEventListener('click', async () => {
+          await fetch(`${API}/logout`, { credentials: 'include' });
+          window.location.href = '/';
+        });
+
+      init();
+    </script>
+  </body>
+</html>
+<style is:global>
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+  :root {
+    --purple: #5b4fe8;
+    --purple-dark: #4a3fd4;
+    --gray-bg: #eef2f7;
+    --gray-100: #f5f7fa;
+    --gray-200: #e8ecf2;
+    --gray-400: #9aa3b2;
+    --gray-600: #6b7280;
+    --dark: #1a1f2e;
+    --white: #ffffff;
+    --radius: 14px;
+    --shadow: 0 2px 16px rgba(91, 79, 232, 0.08);
+  }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--gray-bg);
+    min-height: 100vh;
+    padding: 24px 0;
+  }
+
+  .navbar {
+    background: var(--white);
+    border-radius: var(--radius);
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    box-shadow: var(--shadow);
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+
+  .nav-title h2 {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--dark);
+  }
+  .nav-title p {
+    font-size: 0.82rem;
+    color: var(--gray-600);
+  }
+  .nav-actions {
+    display: flex;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+
+  .new-exp-btn {
+    padding: 10px 20px;
+    background: var(--purple);
+    color: var(--white);
+    border: none;
+    border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: background 0.2s;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  :global(.new-exp-btn:hover) {
+    background: var(--purple-dark);
+  }
+
+  .logout-btn {
+    padding: 10px 20px;
+    background: #374151;
+    color: var(--white);
+    border: none;
+    border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: background 0.2s;
+    white-space: nowrap;
+  }
+  .logout-btn:hover {
+    background: #1f2937;
+  }
+
+  .search-bar {
+    background: var(--white);
+    border-radius: var(--radius);
+    padding: 14px 20px;
+    box-shadow: var(--shadow);
+    margin-bottom: 20px;
+  }
+  .search-input-wrap {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border: 1.5px solid var(--gray-200);
+    border-radius: 10px;
+    padding: 10px 16px;
+    background: var(--gray-100);
+    transition: border-color 0.2s;
+  }
+  .search-input-wrap:focus-within {
+    border-color: var(--purple);
+    background: var(--white);
+  }
+  .search-input-wrap svg {
+    color: var(--gray-400);
+    flex-shrink: 0;
+  }
+  .search-input-wrap input {
+    border: none;
+    background: transparent;
+    outline: none;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.95rem;
+    color: var(--dark);
+    width: 100%;
+  }
+  .search-input-wrap input::placeholder {
+    color: var(--gray-400);
+  }
+
+  .content-card {
+    background: var(--white);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 28px;
+    min-height: 320px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .empty-icon {
+    font-size: 5rem;
+    color: var(--gray-400);
+  }
+
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+    gap: 12px;
+  }
+
+  .empty-state h3 {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--dark);
+  }
+  .empty-state p {
+    color: var(--gray-600);
+    font-size: 0.9rem;
+  }
+  .empty-state .new-exp-btn {
+    margin-top: 8px;
+    display: inline-flex;
+  }
+
+  .experiments-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+    width: 100%;
+  }
+  .exp-card {
+    border: 1.5px solid var(--gray-200);
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    cursor: pointer;
+    transition:
+      border-color 0.2s,
+      box-shadow 0.2s,
+      transform 0.15s;
+    text-decoration: none;
+    display: block;
+    color: inherit;
+  }
+  .exp-card:hover {
+    border-color: var(--purple);
+    box-shadow: 0 4px 16px rgba(91, 79, 232, 0.12);
+    transform: translateY(-2px);
+  }
+  .exp-card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .exp-card-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--dark);
+  }
+  .exp-card-species {
+    font-size: 0.82rem;
+    color: var(--gray-600);
+    margin-top: 2px;
+  }
+  .exp-badge {
+    background: #ede9fe;
+    color: var(--purple);
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .exp-card-date {
+    font-size: 0.78rem;
+    color: var(--gray-400);
+    margin-top: 12px;
+  }
+
+  @media (max-width: 600px) {
+    body {
+      padding: 16px 12px;
+    }
+    .navbar {
+      padding: 14px 16px;
+    }
+    .nav-actions {
+      width: 100%;
+      justify-content: flex-end;
+    }
+    .content-card {
+      padding: 20px 16px;
+    }
+    .experiments-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

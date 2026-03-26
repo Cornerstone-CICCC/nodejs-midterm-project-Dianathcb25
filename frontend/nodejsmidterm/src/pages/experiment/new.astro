@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>New Experiment - BioTrack</title>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Edu+AU+VIC+WA+NT+Guides:wght@400..700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div class="page-card">
+      <div class="page-header">
+        <button class="back-btn" onclick="window.location.href='/dashboard'"
+          ><i class="fa-solid fa-arrow-left-long"></i></button
+        >
+        <h1 id="page-title">New Experiment</h1>
+      </div>
+
+      <div id="error-msg" class="error-msg"></div>
+
+      <div>
+        <div class="section-title">General Information</div>
+        <div class="section">
+          <div class="row">
+            <div class="field">
+              <label for="name">Experiment Name *</label>
+              <input
+                type="text"
+                id="name"
+                placeholder="e.g.: Neuroprotective effect of isoflvones..."
+              />
+            </div>
+          </div>
+
+          <div>
+            <div class="field">
+              <label for="description">Description</label>
+              <textarea
+                id="description"
+                placeholder="Brief description of the experiment, objectives, etc."
+              ></textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">
+          Static Parameters <span class="section-subtitle"
+            >(applicable to all subjects)</span
+          >
+        </div>
+
+        <div class="row">
+          <div class="field">
+            <label for="species">Species *</label>
+            <input
+              type="text"
+              id="species"
+              placeholder="e.g. Rattus norvegicus"
+            />
+          </div>
+
+          <div class="field">
+            <label for="group">Group *</label>
+            <input
+              type="text"
+              id="group"
+              placeholder="e.g. Control, Experimental A"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button class="submit-btn" id="submit-btn"
+          ><i class="fa-solid fa-clipboard-check"></i> Create Experiment</button
+        >
+        <button
+          class="cancel-btn"
+          id="cancel-btn"
+          onclick="window.location.href='/dashboard'">Cancel</button
+        >
+      </div>
+    </div>
+
+    <script>
+      const API = 'http://localhost:3000';
+
+      async function init() {
+        const res = await fetch(`${API}/auth-check`, {
+          credentials: 'include',
+        });
+        if (!res.ok) {
+          window.location.href = '/';
+          return;
+        }
+
+        const params = new URLSearchParams(window.location.search);
+        const editId = params.get('edit');
+        if (editId) loadForEdit(editId);
+      }
+
+      async function loadForEdit(id: string) {
+        const res = await fetch(`${API}/experiments/${id}`, {
+          credentials: 'include',
+        });
+        if (!res.ok) return;
+        const exp = await res.json();
+
+        (
+          document.getElementById('page-title') as HTMLHeadingElement
+        ).textContent = 'Edit experiment';
+        (document.getElementById('submit-btn') as HTMLButtonElement).innerHTML =
+          `
+        <i class="fa-regular fa-floppy-disk"></i> Save Changes
+        `;
+        (document.getElementById('name') as HTMLInputElement).value = exp.name;
+        (document.getElementById('description') as HTMLTextAreaElement).value =
+          exp.description;
+        (document.getElementById('species') as HTMLInputElement).value =
+          exp.species;
+        (document.getElementById('group') as HTMLInputElement).value =
+          exp.groupName;
+      }
+
+      document
+        .getElementById('submit-btn')
+        ?.addEventListener('click', async () => {
+          const errEl = document.getElementById('error-msg') as HTMLDivElement;
+          errEl.classList.remove('show');
+
+          const name = (
+            document.getElementById('name') as HTMLInputElement
+          ).value.trim();
+          const description = (
+            document.getElementById('description') as HTMLTextAreaElement
+          ).value.trim();
+          const species = (
+            document.getElementById('species') as HTMLInputElement
+          ).value.trim();
+          const groupName = (
+            document.getElementById('group') as HTMLInputElement
+          ).value.trim();
+
+          if (!name || !species || !groupName) {
+            errEl.textContent = 'Name, species and group are required.';
+            errEl.classList.add('show');
+            return;
+          }
+
+          const params = new URLSearchParams(window.location.search);
+          const editId = params.get('edit');
+
+          const method = editId ? 'PUT' : 'POST';
+          const url = editId
+            ? `${API}/experiments/${editId}`
+            : `${API}/experiments`;
+
+          const res = await fetch(url, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ name, description, species, groupName }),
+          });
+
+          const data = await res.json();
+
+          if (!res.ok) {
+            errEl.textContent = data.error;
+            errEl.classList.add('show');
+            return;
+          }
+          window.location.href = `/experiment/${data.id}`;
+        });
+
+      init();
+    </script>
+  </body>
+</html>
+
+<style>
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+  :root {
+    --purple: #5b4fe8;
+    --purple-dark: #4a3fd4;
+    --gray-bg: #eef2f7;
+    --gray-100: #f5f7fa;
+    --gray-200: #e8ecf2;
+    --gray-400: #9aa3b2;
+    --gray-600: #6b7280;
+    --dark: #1a1f2e;
+    --white: #ffffff;
+    --radius: 14px;
+    --shadow: 0 2px 16px rgba(91, 79, 232, 0.08);
+  }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--gray-bg);
+    min-height: 100vh;
+    padding: 24px 20px;
+  }
+
+  .page-card {
+    background: var(--white);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 36px 40px;
+    max-width: 700px;
+    margin: 0 auto;
+  }
+
+  .page-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 32px;
+  }
+  .back-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--gray-600);
+    padding: 6px;
+    border-radius: 8px;
+    transition: background 0.2s;
+    display: flex;
+    align-items: center;
+  }
+  .back-btn:hover {
+    background: var(--gray-200);
+    color: var(--dark);
+  }
+  .page-header h1 {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--dark);
+  }
+
+  .section-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--dark);
+    margin-bottom: 18px;
+    padding-bottom: 10px;
+    border-bottom: 1.5px solid var(--gray-200);
+  }
+  .section-subtitle {
+    font-size: 0.8rem;
+    font-weight: 400;
+    color: var(--gray-400);
+    margin-left: 6px;
+  }
+
+  .section {
+    margin-bottom: 30px;
+  }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 18px;
+  }
+  .field:last-child {
+    margin-bottom: 0;
+  }
+  .field label {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--dark);
+  }
+  .field input,
+  .field textarea {
+    padding: 13px 16px;
+    border: 1.5px solid var(--gray-200);
+    border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.95rem;
+    color: var(--dark);
+    background: var(--gray-100);
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .field input:focus,
+  .field textarea:focus {
+    border-color: var(--purple);
+    background: var(--white);
+  }
+  .field input::placeholder,
+  .field textarea::placeholder {
+    color: var(--gray-400);
+  }
+  .field textarea {
+    resize: vertical;
+    min-height: 100px;
+  }
+
+  .row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  .error-msg {
+    background: #fee2e2;
+    color: #dc2626;
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 0.88rem;
+    font-weight: 500;
+    display: none;
+    margin-bottom: 20px;
+  }
+  .error-msg.show {
+    display: block;
+  }
+
+  .form-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 10px;
+  }
+  .submit-btn {
+    flex: 1;
+    padding: 15px;
+    border: none;
+    border-radius: 12px;
+    background: var(--purple);
+    color: var(--white);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .submit-btn:hover {
+    background: var(--purple-dark);
+  }
+  .cancel-btn {
+    padding: 15px 28px;
+    border: 1.5px solid var(--gray-200);
+    border-radius: 12px;
+    background: var(--white);
+    color: var(--gray-600);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .cancel-btn:hover {
+    border-color: var(--dark);
+    color: var(--dark);
+  }
+
+  @media (max-width: 600px) {
+    .page-card {
+      padding: 24px 18px;
+    }
+    .row {
+      grid-template-columns: 1fr;
+    }
+    .form-actions {
+      flex-direction: column;
+    }
+    .cancel-btn {
+      text-align: center;
+    }
+  }
+</style>
